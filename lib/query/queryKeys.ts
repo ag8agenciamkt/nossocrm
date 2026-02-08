@@ -149,6 +149,8 @@ export const queryKeys = {
         pendingAdvanceCount: () => ['ai', 'pendingAdvances', 'count'] as const,
         /** Meeting briefing for a deal */
         briefing: (dealId: string) => ['ai', 'briefing', dealId] as const,
+        /** AI metrics for dashboard */
+        metrics: (orgId: string) => ['ai', 'metrics', orgId] as const,
     },
 
     /**
@@ -160,6 +162,24 @@ export const queryKeys = {
         /** Custom templates only */
         custom: () => [...base.all, 'custom'] as const,
     })),
+
+    // =========================================================================
+    // VOICE MODULE
+    // =========================================================================
+
+    /**
+     * Voice calls and configuration query keys.
+     */
+    voice: {
+        /** All voice queries */
+        all: ['voice'] as const,
+        /** Voice config for the org */
+        config: () => ['voice', 'config'] as const,
+        /** Voice calls for a deal */
+        calls: (dealId: string) => ['voice', 'calls', dealId] as const,
+        /** Single voice call */
+        call: (callId: string) => ['voice', 'call', callId] as const,
+    },
 };
 
 /**

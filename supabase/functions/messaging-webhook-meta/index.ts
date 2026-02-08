@@ -538,6 +538,61 @@ Deno.serve(async (req) => {
 });
 
 // =============================================================================
+// AI PROCESSING TRIGGER
+// =============================================================================
+
+/**
+ * Trigger AI processing for an inbound message.
+ * Calls the internal API endpoint to process the message with AI.
+ * This is a fire-and-forget operation - errors are logged but don't fail the webhook.
+ */
+async function triggerAIProcessing(params: {
+  conversationId: string;
+  organizationId: string;
+  messageText: string;
+  messageId?: string;
+}): Promise<void> {
+  const appUrl = Deno.env.get("CRM_APP_URL");
+  if (!appUrl) {
+    console.log("[Webhook] CRM_APP_URL not set, skipping AI processing");
+    return;
+  }
+
+  const internalSecret = Deno.env.get("INTERNAL_API_SECRET");
+  if (!internalSecret) {
+    console.log("[Webhook] INTERNAL_API_SECRET not set, skipping AI processing");
+    return;
+  }
+
+  const endpoint = `${appUrl}/api/messaging/ai/process`;
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Secret": internalSecret,
+      },
+      body: JSON.stringify({
+        conversationId: params.conversationId,
+        organizationId: params.organizationId,
+        messageText: params.messageText,
+        messageId: params.messageId,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Webhook] AI processing failed: ${response.status} - ${errorText}`);
+    } else {
+      console.log(`[Webhook] AI processing triggered for conversation ${params.conversationId}`);
+    }
+  } catch (error) {
+    console.error("[Webhook] Error triggering AI processing:", error);
+  }
+}
+
+// =============================================================================
 // EVENT HANDLERS
 // =============================================================================
 
@@ -766,6 +821,19 @@ async function handleInboundMessage(
       ...(senderName && { external_contact_name: senderName }),
     })
     .eq("id", conversationId);
+
+  // Trigger AI processing for text messages (fire-and-forget)
+  if (content.type === "text" && content.text) {
+    triggerAIProcessing({
+      conversationId,
+      organizationId: channel.organization_id,
+      messageText: content.text,
+      messageId: externalMessageId,
+    }).catch((err) => {
+      // Log but don't fail the webhook
+      console.error("[Webhook] AI processing trigger error:", err);
+    });
+  }
 }
 
 /**
@@ -1257,6 +1325,19 @@ async function handleInstagramInboundMessage(
       status: "open",
     })
     .eq("id", conversationId);
+
+  // Trigger AI processing for text messages (fire-and-forget)
+  if (content.type === "text" && content.text) {
+    triggerAIProcessing({
+      conversationId,
+      organizationId: channel.organization_id,
+      messageText: content.text,
+      messageId: externalMessageId,
+    }).catch((err) => {
+      // Log but don't fail the webhook
+      console.error("[Webhook/IG] AI processing trigger error:", err);
+    });
+  }
 }
 
 async function handleInstagramStatusUpdate(

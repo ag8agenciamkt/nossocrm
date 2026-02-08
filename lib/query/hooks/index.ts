@@ -184,3 +184,24 @@ export {
   useLearnMutation,
   useClearPatternsMutation,
 } from './useLearnedPatternsQuery';
+
+// AI Metrics (Dashboard)
+export {
+  useAIMetricsQuery,
+  useAIQuickStats,
+  type AIMetrics,
+  type AIConversationStats,
+  type AIHITLStats,
+} from './useAIMetricsQuery';
+
+// =============================================================================
+// VOICE MODULE
+// =============================================================================
+
+export {
+  useVoiceConfigQuery,
+  useVoiceCallsQuery,
+  useStartVoiceCallMutation,
+  useEnableVoiceMutation,
+  type VoiceConfig,
+} from './useVoiceCallsQuery';

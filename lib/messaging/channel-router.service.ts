@@ -24,6 +24,10 @@
 
 import { createStaticAdminClient } from '@/lib/supabase/server';
 import { ChannelProviderFactory } from './channel-factory';
+
+// IMPORTANT: Import providers to trigger automatic factory registration
+// This must be imported before any ChannelProviderFactory.createProvider() calls
+import './providers';
 import type {
   ChannelType,
   MessagingChannel,
