@@ -6,6 +6,7 @@ import { useCRM } from '@/context/CRMContext';
 import { AIConfigSection } from './components/AIConfigSection';
 import { AIAgentConfigSection } from './components/ai/AIAgentConfigSection';
 import { AIFeaturesSection } from './components/AIFeaturesSection';
+import { VoiceSection } from './components/VoiceSection';
 
 /**
  * Componente React `AICenterSettings`.
@@ -65,6 +66,10 @@ export const AICenterSettings: React.FC = () => {
 
       <div className="mt-6">
         <AIFeaturesSection />
+      </div>
+
+      <div className="mt-6">
+        <VoiceSection />
       </div>
     </div>
   );
