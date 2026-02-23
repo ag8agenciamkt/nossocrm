@@ -855,18 +855,27 @@ async function logAIInteraction(params: {
 }): Promise<void> {
   const { supabase, organizationId, conversationId, messageId, stageId, context, decision } = params;
 
-  await supabase.from('ai_conversation_log').insert({
-    organization_id: organizationId,
-    conversation_id: conversationId,
-    message_id: messageId,
-    stage_id: stageId,
-    context_snapshot: context,
-    ai_response: decision.response || '',
-    tokens_used: decision.tokens_used,
-    model_used: decision.model_used,
-    action_taken: decision.action,
-    action_reason: decision.reason,
-  });
+  // Logging is fire-and-forget — a failure here must NOT propagate to the caller
+  // and disrupt message processing or webhook acknowledgment.
+  try {
+    const { error } = await supabase.from('ai_conversation_log').insert({
+      organization_id: organizationId,
+      conversation_id: conversationId,
+      message_id: messageId,
+      stage_id: stageId,
+      context_snapshot: context,
+      ai_response: decision.response || '',
+      tokens_used: decision.tokens_used,
+      model_used: decision.model_used,
+      action_taken: decision.action,
+      action_reason: decision.reason,
+    });
+    if (error) {
+      console.error('[AI] logAIInteraction insert failed (non-fatal):', error.message);
+    }
+  } catch (err) {
+    console.error('[AI] logAIInteraction unexpected error (non-fatal):', err);
+  }
 }
 
 // =============================================================================

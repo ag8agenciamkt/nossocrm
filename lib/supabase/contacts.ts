@@ -17,6 +17,18 @@ import { Contact, CRMCompany, OrganizationId, PaginationState, PaginatedResponse
 import { sanitizeUUID, sanitizeText, sanitizeNumber } from './utils';
 import { normalizePhoneE164 } from '@/lib/phone';
 
+async function getCurrentOrganizationId(): Promise<string | null> {
+  if (!supabase) return null;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('organization_id')
+    .eq('id', user.id)
+    .single();
+  return (profile as any)?.organization_id ?? null;
+}
+
 // ============================================
 // CONTACTS SERVICE
 // ============================================
@@ -399,6 +411,7 @@ export const contactsService = {
         return { data: null, error: new Error('Supabase não configurado') };
       }
       const phoneE164 = normalizePhoneE164(contact.phone);
+      const organizationId = await getCurrentOrganizationId();
       const insertData = {
         name: contact.name,
         email: sanitizeText(contact.email),
@@ -414,6 +427,7 @@ export const contactsService = {
         last_interaction: sanitizeText(contact.lastInteraction),
         last_purchase_date: sanitizeText(contact.lastPurchaseDate),
         total_value: sanitizeNumber(contact.totalValue, 0),
+        ...(organizationId ? { organization_id: organizationId } : {}),
       };
 
       const { data, error } = await supabase
@@ -629,10 +643,12 @@ export const companiesService = {
       if (!supabase) {
         return { data: null, error: new Error('Supabase não configurado') };
       }
+      const organizationId = await getCurrentOrganizationId();
       const insertData = {
         name: company.name,
         industry: sanitizeText(company.industry),
         website: sanitizeText(company.website),
+        ...(organizationId ? { organization_id: organizationId } : {}),
       };
 
       const { data, error } = await supabase

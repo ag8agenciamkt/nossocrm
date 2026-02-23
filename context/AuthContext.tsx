@@ -30,6 +30,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { queryClient } from '../lib/query';
 import type { OrganizationId } from '../types';
 
 /**
@@ -205,6 +206,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const signOut = async () => {
         if (sb) await sb.auth.signOut();
+        // Clear TanStack Query cache to prevent data leakage between sessions/tenants
+        queryClient.clear();
         setProfile(null);
         setUser(null);
         setSession(null);

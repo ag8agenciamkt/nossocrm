@@ -41,6 +41,24 @@ export async function GET(req: Request) {
 
     const supabase = await createClient();
 
+    // Auth check — must come before any data access
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile?.organization_id) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    const orgId = profile.organization_id;
+
     const chunkSize = 1000;
     let page = 0;
     let allContacts: Array<any> = [];
@@ -56,6 +74,7 @@ export async function GET(req: Request) {
         .select(
           'id,name,email,phone,role,notes,status,stage,created_at,updated_at,client_company_id,last_purchase_date'
         )
+        .eq('organization_id', orgId)
         .is('deleted_at', null);
 
       if (search) {
@@ -105,6 +124,7 @@ export async function GET(req: Request) {
           .from('crm_companies')
           .select('id,name')
           .in('id', ids)
+          .eq('organization_id', orgId)
           .is('deleted_at', null);
 
         if (companiesError) {

@@ -185,6 +185,24 @@ export async function POST(req: Request) {
 
     const supabase = await createClient();
 
+    // Auth check — must come before any data access
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile?.organization_id) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    const orgId = profile.organization_id;
+
     // Companies: preload and optionally create missing ones
     const { data: companies, error: companiesError } = await supabase
       .from('crm_companies')
@@ -211,7 +229,7 @@ export async function POST(req: Request) {
     }
 
     if (createCompanies && missingCompanies.size) {
-      const payload = Array.from(missingCompanies).map(name => ({ name }));
+      const payload = Array.from(missingCompanies).map(name => ({ name, organization_id: orgId }));
       const { data: createdCompanies, error: createCompaniesError } = await supabase
         .from('crm_companies')
         .insert(payload)
@@ -295,6 +313,7 @@ export async function POST(req: Request) {
         notes: p.data.notes || null,
         status: p.data.status || 'ACTIVE',
         stage: p.data.stage || 'LEAD',
+        organization_id: orgId,
         updated_at: new Date().toISOString(),
       };
 

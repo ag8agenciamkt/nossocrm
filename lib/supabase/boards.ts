@@ -801,6 +801,7 @@ export const boardsService = {
         ? existingStages[0].order + 1
         : 0;
 
+      const organizationId = await getCurrentOrganizationId();
       const { data, error } = await supabase
         .from('board_stages')
         .insert({
@@ -809,6 +810,7 @@ export const boardsService = {
           color: stage.color || 'bg-gray-500',
           order: nextOrder,
           linked_lifecycle_stage: stage.linkedLifecycleStage || null,
+          ...(organizationId ? { organization_id: organizationId } : {}),
         })
         .select()
         .single();
