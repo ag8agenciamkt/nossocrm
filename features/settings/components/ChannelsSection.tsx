@@ -107,10 +107,26 @@ function getSupabaseProjectRef(): string {
   }
 }
 
-function WebhookInfo({ channelId, verifyToken }: { channelId: string; verifyToken?: string }) {
+const WEBHOOK_FUNCTION_MAP: Record<string, string> = {
+  'z-api': 'messaging-webhook-zapi',
+  'meta-cloud': 'messaging-webhook-meta',
+  'meta': 'messaging-webhook-meta',
+  'resend': 'messaging-webhook-resend',
+};
+
+const WEBHOOK_PROVIDER_LABEL: Record<string, string> = {
+  'z-api': 'Z-API (Configurações → Webhook)',
+  'meta-cloud': 'Meta for Developers (WhatsApp → Webhook)',
+  'meta': 'Meta for Developers (Messenger → Webhook)',
+  'resend': 'Resend (Dashboard → Webhooks)',
+};
+
+function WebhookInfo({ channelId, provider, verifyToken }: { channelId: string; provider: string; verifyToken?: string }) {
   const { addToast } = useToast();
   const projectRef = getSupabaseProjectRef();
-  const webhookUrl = `https://${projectRef}.supabase.co/functions/v1/messaging-webhook-meta/${channelId}`;
+  const fn = WEBHOOK_FUNCTION_MAP[provider] || 'messaging-webhook-zapi';
+  const webhookUrl = `https://${projectRef}.supabase.co/functions/v1/${fn}/${channelId}`;
+  const providerLabel = WEBHOOK_PROVIDER_LABEL[provider] || provider;
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
@@ -125,22 +141,21 @@ function WebhookInfo({ channelId, verifyToken }: { channelId: string; verifyToke
     <div className="mt-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
       <h5 className="text-xs font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-1.5">
         <ExternalLink className="w-3.5 h-3.5" />
-        Configure o Webhook no Meta for Developers
+        Configure o Webhook no {providerLabel}
       </h5>
 
       <div className="space-y-2">
-        {/* Callback URL */}
         <div>
           <label className="text-[10px] font-medium text-blue-600 dark:text-blue-300 uppercase tracking-wider">
-            Callback URL
+            Webhook URL
           </label>
           <div className="flex items-center gap-1 mt-0.5">
-            <code className="flex-1 text-[11px] bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded text-blue-900 dark:text-blue-100 truncate">
+            <code className="flex-1 text-[11px] bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded text-blue-900 dark:text-blue-100 break-all select-all">
               {webhookUrl}
             </code>
             <button
               onClick={() => copyToClipboard(webhookUrl, 'URL')}
-              className="p-1 hover:bg-blue-200 dark:hover:bg-blue-800/50 rounded transition-colors"
+              className="shrink-0 p-1.5 hover:bg-blue-200 dark:hover:bg-blue-800/50 rounded transition-colors"
               title="Copiar URL"
             >
               <Copy className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
@@ -148,7 +163,6 @@ function WebhookInfo({ channelId, verifyToken }: { channelId: string; verifyToke
           </div>
         </div>
 
-        {/* Verify Token */}
         {verifyToken && (
           <div>
             <label className="text-[10px] font-medium text-blue-600 dark:text-blue-300 uppercase tracking-wider">
@@ -160,7 +174,7 @@ function WebhookInfo({ channelId, verifyToken }: { channelId: string; verifyToke
               </code>
               <button
                 onClick={() => copyToClipboard(verifyToken, 'Token')}
-                className="p-1 hover:bg-blue-200 dark:hover:bg-blue-800/50 rounded transition-colors"
+                className="shrink-0 p-1.5 hover:bg-blue-200 dark:hover:bg-blue-800/50 rounded transition-colors"
                 title="Copiar Token"
               >
                 <Copy className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
@@ -168,10 +182,6 @@ function WebhookInfo({ channelId, verifyToken }: { channelId: string; verifyToke
             </div>
           </div>
         )}
-
-        <p className="text-[10px] text-blue-600 dark:text-blue-300">
-          Selecione os eventos: <code className="bg-blue-100 dark:bg-blue-900/30 px-1 rounded">messages</code> e <code className="bg-blue-100 dark:bg-blue-900/30 px-1 rounded">message_status</code>
-        </p>
       </div>
     </div>
   );
@@ -332,13 +342,12 @@ function ChannelCard({
           </div>
         )}
 
-        {/* Webhook URL for Meta Cloud */}
-        {channel.provider === 'meta-cloud' && channel.status === 'pending' && (
-          <WebhookInfo
-            channelId={channel.id}
-            verifyToken={(channel.settings?.verifyToken || channel.credentials?.verifyToken) as string | undefined}
-          />
-        )}
+        {/* Webhook URL — shown for all providers */}
+        <WebhookInfo
+          channelId={channel.id}
+          provider={channel.provider}
+          verifyToken={(channel.settings?.verifyToken || channel.credentials?.verifyToken) as string | undefined}
+        />
 
         {/* Actions */}
         <div className="mt-4 flex items-center justify-between gap-2">
