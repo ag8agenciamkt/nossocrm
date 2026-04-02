@@ -9,6 +9,7 @@ import { registerContactsAdvancedTools } from '@/lib/mcp/tools/contacts-advanced
 import { mcpContextStorage } from '@/lib/mcp/context';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 async function resolveApiKey(token: string) {
   const fakeRequest = new Request('http://localhost/api/mcp', {

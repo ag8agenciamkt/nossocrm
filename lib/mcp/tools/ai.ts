@@ -4,7 +4,7 @@ import { getMcpContext } from '@/lib/mcp/context';
 import { createStaticAdminClient } from '@/lib/supabase/staticAdminClient';
 import { generateMeetingBriefing } from '@/lib/ai/briefing/briefing.service';
 
-const sb = createStaticAdminClient();
+const getDb = () => createStaticAdminClient();
 
 function ok(data: unknown) {
   return {
@@ -35,7 +35,7 @@ export function registerAITools(server: McpServer) {
     async (args) => {
       const ctx = getMcpContext();
 
-      const { data, error } = await sb
+      const { data, error } = await getDb()
         .from('ai_pending_stage_advances')
         .select(
           `id, organization_id, deal_id, from_stage_id, to_stage_id,
@@ -67,7 +67,7 @@ export function registerAITools(server: McpServer) {
     async (args) => {
       const ctx = getMcpContext();
 
-      const { count, error } = await sb
+      const { count, error } = await getDb()
         .from('ai_pending_stage_advances')
         .select('*', { count: 'exact', head: true })
         .eq('organization_id', ctx.organizationId)
@@ -95,7 +95,7 @@ export function registerAITools(server: McpServer) {
       const ctx = getMcpContext();
 
       // Fetch the pending advance and verify ownership
-      const { data: advance, error: fetchError } = await sb
+      const { data: advance, error: fetchError } = await getDb()
         .from('ai_pending_stage_advances')
         .select('id, organization_id, deal_id, to_stage_id, status')
         .eq('id', args.advanceId)
@@ -111,7 +111,7 @@ export function registerAITools(server: McpServer) {
       const now = new Date().toISOString();
 
       // Resolve the advance record
-      const { data: resolved, error: resolveError } = await sb
+      const { data: resolved, error: resolveError } = await getDb()
         .from('ai_pending_stage_advances')
         .update({
           status: args.action,
@@ -127,7 +127,7 @@ export function registerAITools(server: McpServer) {
 
       // On approval, move the deal to the target stage
       if (args.action === 'approved' && advance.to_stage_id) {
-        const { error: moveError } = await sb
+        const { error: moveError } = await getDb()
           .from('deals')
           .update({ stage_id: advance.to_stage_id })
           .eq('id', advance.deal_id)
@@ -160,7 +160,7 @@ export function registerAITools(server: McpServer) {
 
       const [activitiesResult, dealsResult, hitlResult] = await Promise.all([
         // Overdue activities: due_date <= today, not completed
-        sb
+        getDb()
           .from('activities')
           .select('id, title, type, due_date, deal_id, contact_id, created_at')
           .eq('organization_id', ctx.organizationId)
@@ -170,7 +170,7 @@ export function registerAITools(server: McpServer) {
           .limit(50),
 
         // Recent open deals (last 30 days)
-        sb
+        getDb()
           .from('deals')
           .select('id, title, value, stage_id, created_at, updated_at')
           .eq('organization_id', ctx.organizationId)
@@ -179,7 +179,7 @@ export function registerAITools(server: McpServer) {
           .limit(20),
 
         // Pending HITL count
-        sb
+        getDb()
           .from('ai_pending_stage_advances')
           .select('*', { count: 'exact', head: true })
           .eq('organization_id', ctx.organizationId)
@@ -222,7 +222,7 @@ export function registerAITools(server: McpServer) {
       const ctx = getMcpContext();
 
       // Verify the deal belongs to this org before calling the AI service
-      const { data: deal, error: dealError } = await sb
+      const { data: deal, error: dealError } = await getDb()
         .from('deals')
         .select('id')
         .eq('id', args.dealId)
@@ -233,7 +233,7 @@ export function registerAITools(server: McpServer) {
       if (!deal) return err('Deal not found or access denied');
 
       try {
-        const briefing = await generateMeetingBriefing(args.dealId, sb);
+        const briefing = await generateMeetingBriefing(args.dealId, getDb());
         return ok(briefing);
       } catch (e) {
         return err(e instanceof Error ? e.message : 'Failed to generate briefing');
@@ -256,7 +256,7 @@ export function registerAITools(server: McpServer) {
     async (args) => {
       const ctx = getMcpContext();
 
-      let query = sb
+      let query = getDb()
         .from('ai_learned_patterns')
         .select('id, pattern_type, input_context, expected_output, created_at')
         .eq('organization_id', ctx.organizationId)
@@ -287,7 +287,7 @@ export function registerAITools(server: McpServer) {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const since = thirtyDaysAgo.toISOString();
 
-      const { data, error } = await sb
+      const { data, error } = await getDb()
         .from('ai_conversation_log')
         .select('id, action_taken, tokens_used, model_used, created_at')
         .eq('organization_id', ctx.organizationId)

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getMcpContext } from '@/lib/mcp/context';
 import { createStaticAdminClient } from '@/lib/supabase/staticAdminClient';
 
-const sb = createStaticAdminClient();
+const getDb = () => createStaticAdminClient();
 
 function ok(data: unknown) {
   return {
@@ -30,7 +30,7 @@ export function registerMessagingTools(server: McpServer) {
     },
     async () => {
       const ctx = getMcpContext();
-      const { data, error } = await sb
+      const { data, error } = await getDb()
         .from('messaging_channels')
         .select(
           'id, organization_id, channel_type, provider, external_identifier, name, settings, status, deleted_at, created_at, updated_at'
@@ -61,7 +61,7 @@ export function registerMessagingTools(server: McpServer) {
     async (args) => {
       const ctx = getMcpContext();
 
-      let query = sb
+      let query = getDb()
         .from('messaging_conversations')
         .select(
           `id, organization_id, channel_id, contact_id, external_contact_id,
@@ -98,7 +98,7 @@ export function registerMessagingTools(server: McpServer) {
     async (args) => {
       const ctx = getMcpContext();
 
-      const { data: conversation, error: convError } = await sb
+      const { data: conversation, error: convError } = await getDb()
         .from('messaging_conversations')
         .select(
           `id, organization_id, channel_id, contact_id, external_contact_id,
@@ -114,7 +114,7 @@ export function registerMessagingTools(server: McpServer) {
       if (convError) return err(convError.message);
       if (!conversation) return err('Conversation not found');
 
-      const { data: messages, error: msgError } = await sb
+      const { data: messages, error: msgError } = await getDb()
         .from('messaging_messages')
         .select(
           'id, conversation_id, external_id, direction, content_type, content, status, error_code, error_message, sender_name, metadata, created_at'
@@ -145,7 +145,7 @@ export function registerMessagingTools(server: McpServer) {
       const ctx = getMcpContext();
 
       // Verify the conversation belongs to this org before inserting
-      const { data: conv, error: convError } = await sb
+      const { data: conv, error: convError } = await getDb()
         .from('messaging_conversations')
         .select('id')
         .eq('id', args.conversationId)
@@ -155,7 +155,7 @@ export function registerMessagingTools(server: McpServer) {
       if (convError) return err(convError.message);
       if (!conv) return err('Conversation not found or access denied');
 
-      const { data: message, error: insertError } = await sb
+      const { data: message, error: insertError } = await getDb()
         .from('messaging_messages')
         .insert({
           conversation_id: args.conversationId,
@@ -190,7 +190,7 @@ export function registerMessagingTools(server: McpServer) {
 
       // Join through conversations to enforce org_id scoping
       // (messaging_messages has no organization_id column)
-      const { data, error } = await sb
+      const { data, error } = await getDb()
         .from('messaging_messages')
         .select(
           `id, conversation_id, direction, content_type, content, status,
@@ -222,7 +222,7 @@ export function registerMessagingTools(server: McpServer) {
       const ctx = getMcpContext();
 
       // Look up message via conversation join to verify org ownership
-      const { data: msg, error: lookupError } = await sb
+      const { data: msg, error: lookupError } = await getDb()
         .from('messaging_messages')
         .select(
           `id, status, messaging_conversations!inner ( organization_id )`
@@ -235,7 +235,7 @@ export function registerMessagingTools(server: McpServer) {
       if (!msg) return err('Message not found or access denied');
       if (msg.status !== 'failed') return err(`Message is not in failed state (current: ${msg.status})`);
 
-      const { data: updated, error: updateError } = await sb
+      const { data: updated, error: updateError } = await getDb()
         .from('messaging_messages')
         .update({ status: 'pending', error_code: null, error_message: null })
         .eq('id', args.messageId)
@@ -262,7 +262,7 @@ export function registerMessagingTools(server: McpServer) {
       const ctx = getMcpContext();
 
       // Filter by org via the channel join
-      let query = sb
+      let query = getDb()
         .from('messaging_templates')
         .select(
           `id, channel_id, external_id, name, language, category, components, status,

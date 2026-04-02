@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getMcpContext } from '@/lib/mcp/context';
 import { createStaticAdminClient } from '@/lib/supabase/staticAdminClient';
 
-const sb = createStaticAdminClient();
+const getDb = () => createStaticAdminClient();
 
 function ok(data: unknown) {
   return {
@@ -32,7 +32,7 @@ export function registerContactsAdvancedTools(server: McpServer) {
       const ctx = getMcpContext();
 
       // Find duplicates by email
-      const { data: emailDups, error: emailError } = await sb
+      const { data: emailDups, error: emailError } = await getDb()
         .from('contacts')
         .select('id, name, email, phone, company, position, source, created_at')
         .eq('organization_id', ctx.organizationId)
@@ -44,7 +44,7 @@ export function registerContactsAdvancedTools(server: McpServer) {
       if (emailError) return err(emailError.message);
 
       // Find duplicates by phone
-      const { data: phoneDups, error: phoneError } = await sb
+      const { data: phoneDups, error: phoneError } = await getDb()
         .from('contacts')
         .select('id, name, email, phone, company, position, source, created_at')
         .eq('organization_id', ctx.organizationId)
@@ -108,7 +108,7 @@ export function registerContactsAdvancedTools(server: McpServer) {
       }
 
       // Verify both contacts exist and belong to this org
-      const { data: contacts, error: lookupError } = await sb
+      const { data: contacts, error: lookupError } = await getDb()
         .from('contacts')
         .select('id, name, email, phone')
         .eq('organization_id', ctx.organizationId)
@@ -123,7 +123,7 @@ export function registerContactsAdvancedTools(server: McpServer) {
       if (!target) return err('Target contact not found or access denied');
 
       // Move deals from source → target
-      const { error: dealsError } = await sb
+      const { error: dealsError } = await getDb()
         .from('deals')
         .update({ contact_id: args.targetId })
         .eq('contact_id', args.sourceId)
@@ -132,7 +132,7 @@ export function registerContactsAdvancedTools(server: McpServer) {
       if (dealsError) return err(`Failed to move deals: ${dealsError.message}`);
 
       // Move conversation links from source → target
-      const { error: convsError } = await sb
+      const { error: convsError } = await getDb()
         .from('messaging_conversations')
         .update({ contact_id: args.targetId })
         .eq('contact_id', args.sourceId)
@@ -141,7 +141,7 @@ export function registerContactsAdvancedTools(server: McpServer) {
       if (convsError) return err(`Failed to move conversations: ${convsError.message}`);
 
       // Delete source contact
-      const { error: deleteError } = await sb
+      const { error: deleteError } = await getDb()
         .from('contacts')
         .delete()
         .eq('id', args.sourceId)
@@ -150,7 +150,7 @@ export function registerContactsAdvancedTools(server: McpServer) {
       if (deleteError) return err(`Failed to delete source contact: ${deleteError.message}`);
 
       // Return the surviving target contact
-      const { data: merged, error: fetchError } = await sb
+      const { data: merged, error: fetchError } = await getDb()
         .from('contacts')
         .select('id, name, email, phone, company, position, source, created_at, updated_at')
         .eq('id', args.targetId)
@@ -184,7 +184,7 @@ export function registerContactsAdvancedTools(server: McpServer) {
     async (args) => {
       const ctx = getMcpContext();
 
-      let query = sb
+      let query = getDb()
         .from('contacts')
         .select(
           'id, name, email, phone, company, position, source, metadata, created_at, updated_at'
@@ -238,7 +238,7 @@ export function registerContactsAdvancedTools(server: McpServer) {
       // Fetch existing emails in this org
       const existingEmailSet = new Set<string>();
       if (incomingEmails.length > 0) {
-        const { data: existing, error: existingError } = await sb
+        const { data: existing, error: existingError } = await getDb()
           .from('contacts')
           .select('email')
           .eq('organization_id', ctx.organizationId)
@@ -286,7 +286,7 @@ export function registerContactsAdvancedTools(server: McpServer) {
       let importedCount = 0;
 
       if (toInsert.length > 0) {
-        const { data: inserted, error: insertError } = await sb
+        const { data: inserted, error: insertError } = await getDb()
           .from('contacts')
           .insert(toInsert)
           .select('id');

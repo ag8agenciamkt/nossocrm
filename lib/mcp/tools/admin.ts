@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getMcpContext } from '@/lib/mcp/context';
 import { createStaticAdminClient } from '@/lib/supabase/staticAdminClient';
 
-const sb = createStaticAdminClient();
+const getDb = () => createStaticAdminClient();
 
 function ok(data: unknown) {
   return {
@@ -30,7 +30,7 @@ export function registerAdminTools(server: McpServer) {
     },
     async () => {
       const ctx = getMcpContext();
-      const { data, error } = await sb
+      const { data, error } = await getDb()
         .from('profiles')
         .select('id, email, full_name, role, avatar_url, created_at')
         .eq('organization_id', ctx.organizationId)
@@ -55,7 +55,7 @@ export function registerAdminTools(server: McpServer) {
     async (args) => {
       const ctx = getMcpContext();
 
-      let query = sb
+      let query = getDb()
         .from('invites')
         .select('id, email, role, status, invited_by, created_at')
         .eq('organization_id', ctx.organizationId)
@@ -85,7 +85,7 @@ export function registerAdminTools(server: McpServer) {
       const ctx = getMcpContext();
 
       // Check if there is already a pending invite for this email
-      const { data: existing, error: lookupError } = await sb
+      const { data: existing, error: lookupError } = await getDb()
         .from('invites')
         .select('id, status')
         .eq('organization_id', ctx.organizationId)
@@ -96,7 +96,7 @@ export function registerAdminTools(server: McpServer) {
       if (lookupError) return err(lookupError.message);
       if (existing) return err(`A pending invite already exists for ${args.email}`);
 
-      const { data: invite, error: insertError } = await sb
+      const { data: invite, error: insertError } = await getDb()
         .from('invites')
         .insert({
           organization_id: ctx.organizationId,
@@ -128,7 +128,7 @@ export function registerAdminTools(server: McpServer) {
       const ctx = getMcpContext();
 
       // Verify invite belongs to this org and is still pending
-      const { data: invite, error: lookupError } = await sb
+      const { data: invite, error: lookupError } = await getDb()
         .from('invites')
         .select('id, status')
         .eq('id', args.inviteId)
@@ -139,7 +139,7 @@ export function registerAdminTools(server: McpServer) {
       if (!invite) return err('Invite not found or access denied');
       if (invite.status !== 'pending') return err(`Cannot cancel invite with status "${invite.status}" — only pending invites can be cancelled`);
 
-      const { error: deleteError } = await sb
+      const { error: deleteError } = await getDb()
         .from('invites')
         .delete()
         .eq('id', args.inviteId)
@@ -162,7 +162,7 @@ export function registerAdminTools(server: McpServer) {
     async () => {
       const ctx = getMcpContext();
 
-      const { data, error } = await sb
+      const { data, error } = await getDb()
         .from('organization_settings')
         .select(
           'id, organization_id, ai_enabled, ai_provider, ai_model, ai_google_key, ai_openai_key, ai_anthropic_key, ai_auto_respond, ai_qualification_mode, ai_template_id, hitl_threshold'
@@ -220,7 +220,7 @@ export function registerAdminTools(server: McpServer) {
 
       if (Object.keys(updates).length === 0) return err('No fields provided to update');
 
-      const { data, error } = await sb
+      const { data, error } = await getDb()
         .from('organization_settings')
         .update(updates)
         .eq('organization_id', ctx.organizationId)
@@ -252,7 +252,7 @@ export function registerAdminTools(server: McpServer) {
       const ctx = getMcpContext();
 
       // Fetch system templates (organization_id IS NULL) and org-specific ones
-      let query = sb
+      let query = getDb()
         .from('ai_qualification_templates')
         .select('id, organization_id, name, methodology, stages, is_system, created_at')
         .or(`organization_id.is.null,organization_id.eq.${ctx.organizationId}`)
@@ -279,7 +279,7 @@ export function registerAdminTools(server: McpServer) {
     async () => {
       const ctx = getMcpContext();
 
-      const { data, error } = await sb
+      const { data, error } = await getDb()
         .from('organization_settings')
         .select('ai_enabled, ai_auto_respond, ai_qualification_mode')
         .eq('organization_id', ctx.organizationId)
