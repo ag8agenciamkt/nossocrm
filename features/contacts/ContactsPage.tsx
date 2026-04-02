@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { Trash2, X } from 'lucide-react';
 import { useContactsController } from './hooks/useContactsController';
@@ -9,15 +10,31 @@ import { ContactsFilters } from './components/ContactsFilters';
 import { ContactsTabs } from './components/ContactsTabs';
 import { ContactsStageTabs } from './components/ContactsStageTabs';
 import { ContactsList } from './components/ContactsList';
-import { ContactFormModal } from './components/ContactFormModal';
-import { CompanyFormModal } from './components/CompanyFormModal';
-import { SelectBoardModal } from './components/SelectBoardModal';
 import { PaginationControls } from './components/PaginationControls';
-import { ContactsImportExportModal } from './components/ContactsImportExportModal';
 import { DuplicatesBanner } from './components/DuplicatesBanner';
-import { MergeContactsModal } from './components/MergeContactsModal';
 import { useDuplicateContactsQuery, useMergeContactsMutation } from '@/lib/query/hooks';
 import { ConfirmDialog as ConfirmModal } from '@/components/ui/confirm-dialog';
+
+const ContactFormModal = dynamic(
+    () => import('./components/ContactFormModal').then(m => ({ default: m.ContactFormModal })),
+    { ssr: false }
+);
+const CompanyFormModal = dynamic(
+    () => import('./components/CompanyFormModal').then(m => ({ default: m.CompanyFormModal })),
+    { ssr: false }
+);
+const SelectBoardModal = dynamic(
+    () => import('./components/SelectBoardModal').then(m => ({ default: m.SelectBoardModal })),
+    { ssr: false }
+);
+const ContactsImportExportModal = dynamic(
+    () => import('./components/ContactsImportExportModal').then(m => ({ default: m.ContactsImportExportModal })),
+    { ssr: false }
+);
+const MergeContactsModal = dynamic(
+    () => import('./components/MergeContactsModal').then(m => ({ default: m.MergeContactsModal })),
+    { ssr: false }
+);
 
 /**
  * Componente React `ContactsPage`.

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import {
     User,
     Phone,
@@ -37,11 +38,28 @@ import { useDealNotes } from '../hooks/useDealNotes';
 import { useDealFiles } from '../hooks/useDealFiles';
 import { useQuickScripts } from '../hooks/useQuickScripts';
 import { useAI } from '@/context/AIContext';
-import { CallModal, CallLogData } from './CallModal';
-import { ScriptEditorModal, ScriptFormData } from './ScriptEditorModal';
-import { ScheduleModal, ScheduleData, ScheduleType } from './ScheduleModal';
+import type { CallLogData } from './CallModal';
+import type { ScriptFormData } from './ScriptEditorModal';
+import type { ScheduleData, ScheduleType } from './ScheduleModal';
 import { generateSalesScript } from '@/lib/ai/tasksClient';
-import { MessageComposerModal, type MessageChannel } from './MessageComposerModal';
+import type { MessageChannel } from './MessageComposerModal';
+
+const CallModal = dynamic(
+    () => import('./CallModal').then(m => ({ default: m.CallModal })),
+    { ssr: false }
+);
+const ScriptEditorModal = dynamic(
+    () => import('./ScriptEditorModal').then(m => ({ default: m.ScriptEditorModal })),
+    { ssr: false }
+);
+const ScheduleModal = dynamic(
+    () => import('./ScheduleModal').then(m => ({ default: m.ScheduleModal })),
+    { ssr: false }
+);
+const MessageComposerModal = dynamic(
+    () => import('./MessageComposerModal').then(m => ({ default: m.MessageComposerModal })),
+    { ssr: false }
+);
 import { callAIProxy } from '@/lib/supabase/ai-proxy';
 import type { ScriptCategory } from '@/lib/supabase/quickScripts';
 
