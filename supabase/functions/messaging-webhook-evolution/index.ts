@@ -603,7 +603,7 @@ async function handleMessagesUpdate(
 
 async function handleConnectionUpdate(
   supabase: ReturnType<typeof createClient>,
-  channel: { id: string },
+  channel: { id: string; credentials: Record<string, string> },
   payload: EvolutionConnectionUpdatePayload
 ) {
   // "connecting" is intentionally omitted — writing it would break the channel
@@ -620,15 +620,62 @@ async function handleConnectionUpdate(
   const newStatus = stateMap[state];
   if (!newStatus) return;
 
+  // When connecting, try to fetch the phone number from Evolution API and save
+  // it as settings.displayPhone so the UI can show it like Z-API does.
+  const updatePayload: Record<string, unknown> = { status: newStatus };
+
+  if (newStatus === "connected") {
+    const phone = await fetchEvolutionPhone(channel.credentials);
+    if (phone) {
+      // Merge displayPhone into existing settings to avoid overwriting other fields
+      const { data: current } = await supabase
+        .from("messaging_channels")
+        .select("settings")
+        .eq("id", channel.id)
+        .maybeSingle();
+      updatePayload.settings = { ...(current?.settings ?? {}), displayPhone: phone };
+      console.log(`[Evolution] Fetched phone for channel ${channel.id}: ${phone}`);
+    }
+  }
+
   const { error } = await supabase
     .from("messaging_channels")
-    .update({ status: newStatus })
+    .update(updatePayload)
     .eq("id", channel.id);
 
   if (error) {
     console.error("[Evolution] Failed to update channel status:", error, { state, channelId: channel.id });
   } else {
     console.log(`[Evolution] Channel ${channel.id} status → ${newStatus}`);
+  }
+}
+
+/**
+ * Fetch the WhatsApp phone number connected to an Evolution instance.
+ * Returns "+5521982219966" style string, or null on failure.
+ */
+async function fetchEvolutionPhone(
+  credentials: Record<string, string>
+): Promise<string | null> {
+  const { serverUrl, apiKey, instanceName } = credentials;
+  if (!serverUrl || !apiKey || !instanceName) return null;
+
+  try {
+    const res = await fetch(
+      `${serverUrl}/instance/fetchInstances?instanceName=${encodeURIComponent(instanceName)}`,
+      { headers: { apikey: apiKey } }
+    );
+    if (!res.ok) return null;
+
+    const data = await res.json() as Array<{ ownerJid?: string; instance?: { owner?: string } }>;
+    // Evolution v2 uses ownerJid at root level; older versions use instance.owner
+    const owner = data[0]?.ownerJid ?? data[0]?.instance?.owner; // e.g. "5521982219966@s.whatsapp.net"
+    if (!owner) return null;
+
+    const digits = owner.split("@")[0].replace(/\D/g, "");
+    return digits ? `+${digits}` : null;
+  } catch {
+    return null;
   }
 }
 
