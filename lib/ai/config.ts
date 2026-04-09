@@ -9,16 +9,9 @@
  */
 
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createOpenAI } from '@ai-sdk/openai';
-import { createAnthropic } from '@ai-sdk/anthropic';
 import { AI_DEFAULT_MODELS, AI_DEFAULT_PROVIDER } from './defaults';
 
-/**
- * Provedores de IA suportados pelo sistema.
- * 
- * @typedef {'google' | 'openai' | 'anthropic'} AIProvider
- */
-export type AIProvider = 'google' | 'openai' | 'anthropic';
+export type AIProvider = 'google';
 
 /**
  * Cria e retorna uma instância do modelo de IA configurada.
@@ -48,22 +41,8 @@ export const getModel = (provider: AIProvider, apiKey: string, modelId: string) 
         throw new Error('API Key is missing');
     }
 
-    switch (provider) {
-        case 'google':
-            const google = createGoogleGenerativeAI({ apiKey });
-            return google(modelId || AI_DEFAULT_MODELS.google);
-
-        case 'openai':
-            const openai = createOpenAI({ apiKey });
-            return openai(modelId || AI_DEFAULT_MODELS.openai);
-
-        case 'anthropic':
-            const anthropic = createAnthropic({ apiKey });
-            return anthropic(modelId || AI_DEFAULT_MODELS.anthropic);
-
-        default:
-            throw new Error(`Provider ${provider} not supported`);
-    }
+    const google = createGoogleGenerativeAI({ apiKey });
+    return google(modelId || AI_DEFAULT_MODELS.google);
 };
 
 /**
@@ -95,20 +74,12 @@ export interface ModelConfig {
  * ```
  */
 export const getModelFromEnv = (config?: ModelConfig) => {
-    const provider = config?.provider || AI_DEFAULT_PROVIDER;
     const model = config?.model || '';
-
-    const envKeyMap: Record<AIProvider, string> = {
-        google: 'GOOGLE_GENERATIVE_AI_API_KEY',
-        openai: 'OPENAI_API_KEY',
-        anthropic: 'ANTHROPIC_API_KEY',
-    };
-
-    const apiKey = process.env[envKeyMap[provider]];
+    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
     if (!apiKey) {
-        throw new Error(`API Key for ${provider} not found in environment (${envKeyMap[provider]})`);
+        throw new Error('API Key for google not found in environment (GOOGLE_GENERATIVE_AI_API_KEY)');
     }
 
-    return getModel(provider, apiKey, model);
+    return getModel(AI_DEFAULT_PROVIDER, apiKey, model);
 };

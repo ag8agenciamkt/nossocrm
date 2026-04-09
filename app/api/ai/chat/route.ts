@@ -11,7 +11,7 @@ import { isAIFeatureEnabled } from '@/lib/ai/features/server';
 
 export const maxDuration = 60;
 
-type AIProvider = 'google' | 'openai' | 'anthropic';
+type AIProvider = 'google';
 
 function asOptionalString(v: unknown): string | undefined {
     return typeof v === 'string' ? v : undefined;
@@ -133,7 +133,7 @@ export async function POST(req: Request) {
     // 3. Get AI settings (org-wide: organization_settings é a fonte de verdade)
     const { data: orgSettings } = await supabase
         .from('organization_settings')
-        .select('ai_enabled, ai_provider, ai_model, ai_google_key, ai_openai_key, ai_anthropic_key')
+        .select('ai_enabled, ai_provider, ai_model, ai_google_key')
         .eq('organization_id', organizationId)
         .maybeSingle();
 
@@ -153,26 +153,18 @@ export async function POST(req: Request) {
         );
     }
 
-    const provider = (orgSettings?.ai_provider ?? 'google') as AIProvider;
+    const provider: AIProvider = 'google';
     const modelId: string | null = orgSettings?.ai_model ?? null;
-
-    const apiKey: string | null =
-        provider === 'google'
-            ? (orgSettings?.ai_google_key ?? null)
-            : provider === 'openai'
-                ? (orgSettings?.ai_openai_key ?? null)
-                : (orgSettings?.ai_anthropic_key ?? null);
+    const apiKey: string | null = orgSettings?.ai_google_key ?? null;
 
     if (!apiKey) {
-        const providerLabel = provider === 'google' ? 'Google Gemini' : provider === 'openai' ? 'OpenAI' : 'Anthropic';
         return new Response(
-            `API key não configurada para ${providerLabel}. Configure em Configurações → Inteligência Artificial.`,
+            'API key não configurada para Google Gemini. Configure em Configurações → Inteligência Artificial.',
             { status: 400 }
         );
     }
 
-    const resolvedModelId =
-        modelId || AI_DEFAULT_MODELS[provider as keyof typeof AI_DEFAULT_MODELS] || AI_DEFAULT_MODELS.google;
+    const resolvedModelId = modelId || AI_DEFAULT_MODELS.google;
 
     // 5. Build type-safe context for agent
     const context: CRMCallOptions = {

@@ -103,25 +103,13 @@ export function buildProviderList(orgConfig: {
   provider: AIProvider;
   apiKey: string;
   model: string;
-  allKeys: Record<AIProvider, string | null>;
 }): ProviderConfig[] {
-  const { provider: primary, apiKey, model, allKeys } = orgConfig;
+  const { provider: primary, apiKey, model } = orgConfig;
   const providers: ProviderConfig[] = [];
 
   // Primary always first
   if (apiKey) {
     providers.push({ provider: primary, apiKey, model });
-  }
-
-  // Add others that have keys (in a fixed fallback order)
-  const fallbackOrder: AIProvider[] = ['google', 'openai', 'anthropic'];
-
-  for (const p of fallbackOrder) {
-    if (p === primary) continue;
-    const key = allKeys[p];
-    if (key) {
-      providers.push({ provider: p, apiKey: key, model: '' }); // empty model = use default
-    }
   }
 
   return providers;

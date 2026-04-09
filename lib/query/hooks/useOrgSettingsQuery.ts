@@ -58,12 +58,9 @@ export const useOrgSettings = (options?: { enabled?: boolean }) => {
         aiProvider: 'google',
         aiApiKey: '',
         aiGoogleKey: '',
-        aiOpenaiKey: '',
-        aiAnthropicKey: '',
         aiModel: '',
         aiThinking: true,
         aiSearch: true,
-        aiAnthropicCaching: false,
         darkMode: true,
         defaultRoute: '/boards',
         activeBoardId: null,
@@ -72,17 +69,13 @@ export const useOrgSettings = (options?: { enabled?: boolean }) => {
       };
 
       const aiKeyConfigured =
-        !!(aiData.aiGoogleKey || aiData.aiOpenaiKey || aiData.aiAnthropicKey) ||
-        !!(aiData.aiHasGoogleKey || aiData.aiHasOpenaiKey || aiData.aiHasAnthropicKey);
+        !!(aiData.aiGoogleKey) || !!(aiData.aiHasGoogleKey);
 
       return {
         ...base,
-        // Override with org-level AI values where present
-        aiProvider: (aiData.aiProvider as UserSettings['aiProvider']) || base.aiProvider,
+        aiProvider: 'google' as const,
         aiModel: aiData.aiModel || base.aiModel,
         aiGoogleKey: aiData.aiGoogleKey || base.aiGoogleKey,
-        aiOpenaiKey: aiData.aiOpenaiKey || base.aiOpenaiKey,
-        aiAnthropicKey: aiData.aiAnthropicKey || base.aiAnthropicKey,
         // Merged extras
         aiOrgEnabled: aiData.aiEnabled ?? false,
         aiKeyConfigured,

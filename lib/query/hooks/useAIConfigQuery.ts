@@ -20,7 +20,7 @@ import { queryKeys } from '../queryKeys';
 
 export interface OrgAIConfig {
   organization_id: string;
-  ai_provider: 'google' | 'openai' | 'anthropic';
+  ai_provider: 'google';
   ai_model: string;
   ai_enabled: boolean;
   ai_config_mode: 'zero_config' | 'template' | 'auto_learn' | 'advanced';

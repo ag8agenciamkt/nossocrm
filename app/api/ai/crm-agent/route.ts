@@ -10,7 +10,7 @@ import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 
 export const maxDuration = 60;
 
-type AIProvider = 'google' | 'openai' | 'anthropic';
+type AIProvider = 'google';
 
 /**
  * Handler HTTP `POST` deste endpoint (Next.js Route Handler).
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     // 4. Get AI settings from org
     const { data: orgSettings } = await supabase
         .from('organization_settings')
-        .select('ai_enabled, ai_provider, ai_model, ai_google_key, ai_openai_key, ai_anthropic_key')
+        .select('ai_enabled, ai_provider, ai_model, ai_google_key')
         .eq('organization_id', organizationId)
         .maybeSingle();
 
@@ -73,20 +73,13 @@ export async function POST(req: Request) {
         );
     }
 
-    const provider = (orgSettings?.ai_provider ?? 'google') as AIProvider;
+    const provider: AIProvider = 'google';
     const modelId: string | null = orgSettings?.ai_model ?? null;
-
-    const apiKey: string | null =
-        provider === 'google'
-            ? (orgSettings?.ai_google_key ?? null)
-            : provider === 'openai'
-                ? (orgSettings?.ai_openai_key ?? null)
-                : (orgSettings?.ai_anthropic_key ?? null);
+    const apiKey: string | null = orgSettings?.ai_google_key ?? null;
 
     if (!apiKey) {
-        const label = provider === 'google' ? 'Google Gemini' : provider === 'openai' ? 'OpenAI' : 'Anthropic';
         return new Response(
-            `API key não configurada para ${label}. Configure em Configurações → Inteligência Artificial.`,
+            'API key não configurada para Google Gemini. Configure em Configurações → Inteligência Artificial.',
             { status: 400 }
         );
     }

@@ -56,7 +56,7 @@ export function registerAdminTools(server: McpServer) {
       const { data, error } = await getDb()
         .from('organization_settings')
         .select(
-          'organization_id, ai_enabled, ai_provider, ai_model, ai_google_key, ai_openai_key, ai_anthropic_key, ai_takeover_enabled, ai_config_mode, ai_template_id, ai_hitl_threshold'
+          'organization_id, ai_enabled, ai_provider, ai_model, ai_google_key, ai_takeover_enabled, ai_config_mode, ai_template_id, ai_hitl_threshold'
         )
         .eq('organization_id', ctx.organizationId)
         .maybeSingle();
@@ -65,16 +65,10 @@ export function registerAdminTools(server: McpServer) {
       if (!data) return err('Organization settings not found');
 
       // Mask API keys — never return the actual values
-      const { ai_google_key, ai_openai_key, ai_anthropic_key, ...safe } = data as typeof data & {
-        ai_google_key?: string | null;
-        ai_openai_key?: string | null;
-        ai_anthropic_key?: string | null;
-      };
+      const { ai_google_key, ...safe } = data as typeof data & { ai_google_key?: string | null };
       const result = {
         ...safe,
         hasGoogleKey: !!ai_google_key,
-        hasOpenAIKey: !!ai_openai_key,
-        hasAnthropicKey: !!ai_anthropic_key,
       };
 
       return ok(result);

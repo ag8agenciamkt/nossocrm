@@ -1,75 +1,43 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useOrgSettings, useUpdateAISettings, useUpdateUserSettings } from '@/lib/query/hooks/useOrgSettingsQuery';
-import { Bot, Key, Cpu, CheckCircle, AlertCircle, Loader2, Save, Trash2, ChevronDown, ChevronUp, Shield, RefreshCw } from 'lucide-react';
+import { Bot, Key, CheckCircle, AlertCircle, Loader2, Save, Trash2, ChevronDown, ChevronUp, Shield, RefreshCw } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
 import type { AIModelInfo } from '@/app/api/ai/models/route';
 
-// Providers suportados (Google e OpenAI apenas)
-const AI_PROVIDERS = [
-    { id: 'google' as const, name: 'Google Gemini' },
-    { id: 'openai' as const, name: 'OpenAI' },
-] as const;
-
-type SupportedProvider = 'google' | 'openai' | 'anthropic';
-
-// Função para validar API key fazendo uma chamada real à API
-async function validateApiKey(provider: string, apiKey: string, model: string): Promise<{ valid: boolean; error?: string }> {
+// Função para validar API key Gemini fazendo uma chamada real à API
+async function validateApiKey(apiKey: string, model: string): Promise<{ valid: boolean; error?: string }> {
     if (!apiKey || apiKey.trim().length < 10) {
         return { valid: false, error: 'Chave muito curta' };
     }
 
     try {
-        if (provider === 'google') {
-            // Gemini API validation - usa endpoint generateContent com texto mínimo
-            const response = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: 'Hi' }] }],
-                        generationConfig: { maxOutputTokens: 1 }
-                    })
-                }
-            );
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: 'Hi' }] }],
+                    generationConfig: { maxOutputTokens: 1 }
+                })
+            }
+        );
 
-            if (response.ok) {
-                return { valid: true };
-            }
+        if (response.ok) return { valid: true };
 
-            const error = await response.json();
-            if (response.status === 400 && error?.error?.message?.includes('API key not valid')) {
-                return { valid: false, error: 'Chave de API inválida' };
-            }
-            if (response.status === 403) {
-                return { valid: false, error: 'Chave sem permissão para este modelo' };
-            }
-            if (response.status === 429) {
-                // Rate limit = key é válida, só está no limite
-                return { valid: true };
-            }
-            return { valid: false, error: error?.error?.message || 'Erro desconhecido' };
-
-        } else if (provider === 'openai') {
-            // OpenAI validation
-            const response = await fetch('https://api.openai.com/v1/models', {
-                headers: { 'Authorization': `Bearer ${apiKey}` }
-            });
-
-            if (response.ok) {
-                return { valid: true };
-            }
-            if (response.status === 401) {
-                return { valid: false, error: 'Chave de API inválida' };
-            }
-            return { valid: false, error: 'Erro ao validar chave' };
-
+        const error = await response.json();
+        if (response.status === 400 && error?.error?.message?.includes('API key not valid')) {
+            return { valid: false, error: 'Chave de API inválida' };
         }
-
-        return { valid: false, error: 'Provedor não suportado' };
-    } catch (error) {
-        console.error('API Key validation error:', error);
+        if (response.status === 403) {
+            return { valid: false, error: 'Chave sem permissão para este modelo' };
+        }
+        if (response.status === 429) {
+            return { valid: true }; // rate limit = key válida
+        }
+        return { valid: false, error: error?.error?.message || 'Erro desconhecido' };
+    } catch {
         return { valid: false, error: 'Erro de conexão. Verifique sua internet.' };
     }
 }
@@ -88,42 +56,22 @@ export const AIConfigSection: React.FC = () => {
     const updateUserSettings = useUpdateUserSettings();
 
     // Derived values from TanStack Query data
-    const aiProvider = (
-        (['google', 'openai', 'anthropic'].includes(orgSettings?.aiProvider ?? '')
-            ? orgSettings!.aiProvider
-            : 'google')
-    ) as SupportedProvider;
     const aiModel = orgSettings?.aiModel ?? '';
     const aiKeyConfigured = orgSettings?.aiKeyConfigured ?? false;
     const aiThinking = orgSettings?.aiThinking ?? true;
     const aiSearch = orgSettings?.aiSearch ?? true;
+    const aiApiKey = orgSettings?.aiGoogleKey ?? '';
 
-    // Local state for immediate visual feedback (selects don't wait for cache refetch)
-    const [localProvider, setLocalProvider] = useState<SupportedProvider | null>(null);
-    const effectiveProvider = localProvider ?? aiProvider;
     const [localModel, setLocalModel] = useState<string | null>(null);
-    // Remember last model per provider so switching back restores the previous selection
-    const [perProviderModel, setPerProviderModel] = useState<Partial<Record<SupportedProvider, string>>>({});
-
-    // Computed: current API key for the active provider
-    // Uses effectiveProvider (not stale cache aiProvider) to avoid reset during race conditions
-    // when model mutation invalidates cache before provider mutation commits.
-    const aiApiKey = effectiveProvider === 'openai'
-        ? (orgSettings?.aiOpenaiKey ?? '')
-        : (orgSettings?.aiGoogleKey ?? '');
 
     // Dynamic model list fetched from the provider's API
     const [dynamicModels, setDynamicModels] = useState<AIModelInfo[]>([]);
     const [modelsLoading, setModelsLoading] = useState(false);
-    // Ref to hold model to restore after provider switch — avoids setting state
-    // before the new provider's options are loaded (React controlled-select quirk:
-    // setting value with no matching option leaves the select stuck on first option).
-    const pendingRestoreRef = useRef<string | null>(null);
 
-    const fetchModels = useCallback(async (targetProvider: SupportedProvider) => {
+    const fetchModels = useCallback(async () => {
         setModelsLoading(true);
         try {
-            const res = await fetch(`/api/ai/models?provider=${targetProvider}`);
+            const res = await fetch('/api/ai/models');
             if (res.ok) {
                 const data = await res.json() as { models?: AIModelInfo[] };
                 setDynamicModels(data.models ?? []);
@@ -135,16 +83,8 @@ export const AIConfigSection: React.FC = () => {
         }
     }, []);
 
-    // Replacement setters using TanStack Query mutations
-    const setAiProvider = async (provider: SupportedProvider) => {
-        await updateAISettings.mutateAsync({ aiProvider: provider });
-    };
     const setAiApiKey = async (key: string) => {
-        if (effectiveProvider === 'openai') {
-            await updateAISettings.mutateAsync({ aiOpenaiKey: key });
-        } else {
-            await updateAISettings.mutateAsync({ aiGoogleKey: key });
-        }
+        await updateAISettings.mutateAsync({ aiGoogleKey: key });
     };
     const setAiModel = async (model: string) => {
         await updateAISettings.mutateAsync({ aiModel: model });
@@ -197,7 +137,7 @@ export const AIConfigSection: React.FC = () => {
         setIsValidating(true);
         setValidationError(null);
 
-        const result = await validateApiKey(effectiveProvider, localApiKey, aiModel);
+        const result = await validateApiKey(localApiKey, aiModel);
 
         setIsValidating(false);
 
@@ -232,61 +172,15 @@ export const AIConfigSection: React.FC = () => {
 
     const hasUnsavedChanges = localApiKey !== aiApiKey;
 
-    // Fetch models when provider key becomes available or provider changes
     useEffect(() => {
         if (aiKeyConfigured) {
-            void fetchModels(effectiveProvider);
+            void fetchModels();
         } else {
             setDynamicModels([]);
         }
-    }, [effectiveProvider, aiKeyConfigured, fetchModels]);
-
-    // After models finish loading, restore the per-provider model (if any).
-    // We can only do this here — not during handleProviderChange — because setting
-    // localModel before options exist leaves the select stuck on the first option.
-    useEffect(() => {
-        if (!modelsLoading && dynamicModels.length > 0 && pendingRestoreRef.current) {
-            const model = pendingRestoreRef.current;
-            pendingRestoreRef.current = null;
-            if (dynamicModels.some(m => m.id === model)) {
-                setLocalModel(model);
-            }
-        }
-    }, [modelsLoading, dynamicModels]);
+    }, [aiKeyConfigured, fetchModels]);
 
     const isCatalogModel = dynamicModels.some(m => m.id === aiModel);
-
-    const handleProviderChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const newProviderId = e.target.value as SupportedProvider;
-
-        // Read perProviderModel synchronously before any setState to avoid stale closure
-        const savedModelForNewProvider = perProviderModel[newProviderId] ?? null;
-        const currentModel = localModel ?? aiModel;
-
-        // Save current model for the provider we're leaving
-        if (currentModel) {
-            setPerProviderModel(prev => ({ ...prev, [effectiveProvider]: currentModel }));
-        }
-
-        // Clear local model — do NOT restore yet. We schedule the restore via ref so it
-        // fires only after the new provider's model list loads (React select quirk: a
-        // controlled select with a value that has no matching <option> gets stuck on the
-        // first option even when options are added later in the same render cycle).
-        setLocalModel(null);
-        setLocalProvider(newProviderId);
-        setDynamicModels([]);
-        pendingRestoreRef.current = savedModelForNewProvider;
-
-        try {
-            await setAiProvider(newProviderId);
-            void fetchModels(newProviderId);
-            showToast('Provedor atualizado!', 'success');
-        } catch (err) {
-            setLocalProvider(null);
-            pendingRestoreRef.current = null;
-            showToast(err instanceof Error ? err.message : 'Falha ao atualizar provedor de IA', 'error');
-        }
-    };
 
     return (
         <div id="ai-config" className="mt-6 border-t border-slate-200 dark:border-white/10 pt-6 scroll-mt-8">
@@ -309,7 +203,7 @@ export const AIConfigSection: React.FC = () => {
                             <span className="font-semibold">Status:</span> Configurado pela organização
                         </div>
                         <div className="text-sm text-slate-700 dark:text-slate-200 mt-1">
-                            <span className="font-semibold">Provedor:</span> {aiProvider}
+                            <span className="font-semibold">Provedor:</span> Google Gemini
                         </div>
                         <div className="text-sm text-slate-700 dark:text-slate-200 mt-1">
                             <span className="font-semibold">Modelo:</span> {aiModel}
@@ -324,30 +218,8 @@ export const AIConfigSection: React.FC = () => {
                 {!isAdmin ? null : (
                     <>
 
-                {/* Provider Selection */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <label htmlFor="ai-provider-select" className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                            <Cpu size={14} /> Provedor de IA
-                        </label>
-                        <div className="relative">
-                            <select
-                                id="ai-provider-select"
-                                value={effectiveProvider}
-                                onChange={handleProviderChange}
-                                className="w-full appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
-                            >
-                                {AI_PROVIDERS.map(p => (
-                                    <option key={p.id} value={p.id}>{p.name}</option>
-                                ))}
-                            </select>
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Model Selection */}
+                {/* Model Selection */}
+                <div className="grid grid-cols-1 gap-4">
                     <div className="space-y-2">
                         <label htmlFor="ai-model-select" className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
                             <Bot size={14} /> Modelo
@@ -355,7 +227,7 @@ export const AIConfigSection: React.FC = () => {
                             {!modelsLoading && aiKeyConfigured && (
                                 <button
                                     type="button"
-                                    onClick={() => fetchModels(effectiveProvider)}
+                                    onClick={() => fetchModels()}
                                     className="ml-auto text-slate-400 hover:text-purple-500 transition-colors"
                                     title="Recarregar modelos"
                                 >
@@ -372,7 +244,6 @@ export const AIConfigSection: React.FC = () => {
                                     const next = e.target.value;
                                     if (!next) return;
                                     setLocalModel(next);
-                                    setPerProviderModel(prev => ({ ...prev, [effectiveProvider]: next }));
                                     try {
                                         await setAiModel(next);
                                         showToast('Modelo salvo!', 'success');
@@ -406,7 +277,7 @@ export const AIConfigSection: React.FC = () => {
                 </div>
 
                 {/* Google Thinking Config */}
-                {effectiveProvider === 'google' && (
+                {(
                     <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-500/20 rounded-lg p-3 animate-in fade-in slide-in-from-top-2">
                         <div className="flex items-center justify-between">
                             <div>
@@ -431,8 +302,8 @@ export const AIConfigSection: React.FC = () => {
                     </div>
                 )}
 
-                {/* Search Config (Google only) */}
-                {effectiveProvider === 'google' && (
+                {/* Search Config */}
+                {(
                     <div className="bg-green-50 dark:bg-green-900/10 border border-green-100 dark:border-green-500/20 rounded-lg p-3 animate-in fade-in slide-in-from-top-2">
                         <div className="flex items-center justify-between">
                             <div>
@@ -460,7 +331,7 @@ export const AIConfigSection: React.FC = () => {
                 {/* API Key */}
                 <div className="space-y-2">
                     <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                        <Key size={14} /> Chave de API ({AI_PROVIDERS.find(p => p.id === effectiveProvider)?.name})
+                        <Key size={14} /> Chave de API (Google Gemini)
                     </label>
                     <div className="flex gap-2">
                         <div className="relative flex-1">
@@ -468,7 +339,7 @@ export const AIConfigSection: React.FC = () => {
                                 type="password"
                                 value={localApiKey}
                                 onChange={(e) => handleKeyChange(e.target.value)}
-                                placeholder={`Cole sua chave ${effectiveProvider === 'google' ? 'AIza...' : 'sk-...'}`}
+                                placeholder="Cole sua chave AIza..."
                                 className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-mono ${validationStatus === 'invalid'
                                         ? 'border-red-300 dark:border-red-500/50'
                                         : validationStatus === 'valid'
@@ -566,7 +437,7 @@ export const AIConfigSection: React.FC = () => {
                                 <div className="pt-2 border-t border-amber-200 dark:border-amber-500/20">
                                     <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
                                         <strong>Base legal:</strong> Consentimento do titular (Art. 7º, I e Art. 11, I da LGPD).
-                                        Seus dados são enviados diretamente ao provedor de IA que você escolheu ({AI_PROVIDERS.find(p => p.id === effectiveProvider)?.name}).
+                                        Seus dados são enviados diretamente ao Google Gemini.
                                         Nós não armazenamos ou intermediamos essas comunicações.
                                     </p>
                                 </div>
@@ -604,7 +475,7 @@ export const AIConfigSection: React.FC = () => {
                         </p>
                         <p className="opacity-90 mt-1">
                             {validationStatus === 'valid' && localApiKey
-                                ? `O sistema está configurado para usar o ${AI_PROVIDERS.find(p => p.id === effectiveProvider)?.name} (${aiModel}).`
+                                ? `O sistema está configurado para usar o Google Gemini (${aiModel}).`
                                 : validationStatus === 'invalid'
                                     ? 'Verifique sua chave de API e tente novamente.'
                                     : 'Insira uma chave de API válida e clique em Salvar para usar o assistente.'}

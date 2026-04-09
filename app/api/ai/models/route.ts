@@ -18,7 +18,7 @@ import { isAllowedOrigin } from '@/lib/security/sameOrigin';
 export interface AIModelInfo {
   id: string;
   name: string;
-  provider: 'google' | 'openai';
+  provider: 'google';
   /** true = alias auto-atualizado (ex: gemini-flash-latest) */
   isAlias: boolean;
 }
@@ -47,35 +47,9 @@ const GOOGLE_EXCLUDED_PATTERNS = [
   'aqa',
 ];
 
-// Padrões de modelos a excluir do fetch da OpenAI
-const OPENAI_EXCLUDED_PATTERNS = [
-  'audio',
-  'image',
-  'realtime',
-  'search',
-  'codex',
-  'deep-research',
-  'embedding',
-  'tts',
-  'whisper',
-  'davinci',
-  'babbage',
-  'moderation',
-  'transcribe',
-  'preview',
-];
-
 function isExcluded(id: string): boolean {
   return GOOGLE_EXCLUDED_PATTERNS.some((p) => id.includes(p));
 }
-
-function isOpenAIExcluded(id: string): boolean {
-  return OPENAI_EXCLUDED_PATTERNS.some((p) => id.includes(p));
-}
-
-// IDs com sufixo de data (ex: gpt-4o-2024-08-06) são snapshots fixos;
-// sem data são aliases auto-atualizados (ex: gpt-4o, o3-mini)
-const DATE_SUFFIX_RE = /\d{4}-\d{2}-\d{2}$/;
 
 async function fetchGoogleModels(apiKey: string): Promise<AIModelInfo[]> {
   const res = await fetch(
@@ -114,36 +88,8 @@ async function fetchGoogleModels(apiKey: string): Promise<AIModelInfo[]> {
   return [...aliases, ...pinned];
 }
 
-async function fetchOpenAIModels(apiKey: string): Promise<AIModelInfo[]> {
-  const res = await fetch('https://api.openai.com/v1/models', {
-    headers: { Authorization: `Bearer ${apiKey}` },
-  });
-  if (!res.ok) throw new Error(`OpenAI API error: HTTP ${res.status}`);
-
-  const data = await res.json() as { data?: Array<{ id: string }> };
-
-  // Snapshots no formato MMDD (ex: gpt-4-0613)
-  const MMDD_SUFFIX_RE = /\d{4}$/;
-
-  return (data.data ?? [])
-    .filter((m) => {
-      const id = m.id;
-      const isChat = id.startsWith('gpt-4') || id.startsWith('gpt-5');
-      const isSnapshot = DATE_SUFFIX_RE.test(id) || MMDD_SUFFIX_RE.test(id);
-      const isLegacy = id === 'gpt-4';
-      return isChat && !isOpenAIExcluded(id) && !isSnapshot && !isLegacy;
-    })
-    .map((m) => ({
-      id: m.id,
-      name: m.id,
-      provider: 'openai' as const,
-      isAlias: true,
-    }))
-    .sort((a, b) => b.id.localeCompare(a.id));
-}
-
 // =============================================================================
-// GET /api/ai/models?provider=google|openai
+// GET /api/ai/models
 // =============================================================================
 
 export async function GET(request: NextRequest) {
@@ -151,24 +97,13 @@ export async function GET(request: NextRequest) {
     return json({ error: 'Forbidden' }, 403);
   }
 
-  const provider = new URL(request.url).searchParams.get('provider');
-
-  if (provider !== 'google' && provider !== 'openai') {
-    return json(
-      { error: 'Parâmetro "provider" inválido. Use "google" ou "openai".' },
-      400
-    );
-  }
-
   const supabase = await createClient();
 
-  // Autenticar
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     return json({ error: 'Não autenticado' }, 401);
   }
 
-  // Buscar organization_id via profile
   const { data: profile } = await supabase
     .from('profiles')
     .select('organization_id')
@@ -179,31 +114,18 @@ export async function GET(request: NextRequest) {
     return json({ models: [] });
   }
 
-  // Buscar API key da organização
-  const keyColumn = provider === 'google' ? 'ai_google_key' : 'ai_openai_key';
-
   const { data: settings, error: settingsError } = await supabase
     .from('organization_settings')
-    .select(keyColumn)
+    .select('ai_google_key')
     .eq('organization_id', profile.organization_id)
     .maybeSingle();
 
-  if (settingsError || !settings) {
-    return json({ models: [] });
-  }
-
-  const apiKey = settings[keyColumn as keyof typeof settings] as string | null;
-
-  if (!apiKey) {
+  if (settingsError || !settings?.ai_google_key) {
     return json({ models: [] });
   }
 
   try {
-    const models =
-      provider === 'google'
-        ? await fetchGoogleModels(apiKey)
-        : await fetchOpenAIModels(apiKey);
-
+    const models = await fetchGoogleModels(settings.ai_google_key);
     return json({ models });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erro desconhecido';

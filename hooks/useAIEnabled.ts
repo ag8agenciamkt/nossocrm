@@ -21,8 +21,8 @@ export interface UseAIEnabledResult {
   isAIEnabled: boolean;
   /** A API Key configurada */
   apiKey: string | null;
-  /** Provider configurado (google, openai, anthropic) */
-  provider: 'google' | 'openai' | 'anthropic';
+  /** Provider configurado */
+  provider: 'google';
   /** Navega para as configurações de IA */
   goToSettings: () => void;
 }

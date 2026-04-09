@@ -161,7 +161,7 @@ export interface AgentConfig {
   /** Modelo padrão */
   default_model: string;
   /** Provider padrão */
-  default_provider: 'google' | 'openai' | 'anthropic';
+  default_provider: 'google';
   /** Máximo de tokens na resposta */
   max_tokens: number;
   /** Temperatura (criatividade) */

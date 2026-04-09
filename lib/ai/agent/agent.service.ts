@@ -67,7 +67,6 @@ export interface OrgAIConfig {
   templateId: string | null;
   takeoverEnabled: boolean;
   takeoverMinutes: number;
-  allKeys: Record<AIProvider, string | null>;
   /** Org-level base system prompt (rules, tone, identity). DB: ai_base_system_prompt. Null → use built-in default. */
   baseSystemPrompt: string | null;
   /** Org timezone. DB: timezone. Default 'America/Sao_Paulo'. */
@@ -101,21 +100,7 @@ export async function getOrgAIConfig(
 
   const provider = (orgSettings.ai_provider || AI_DEFAULT_PROVIDER) as AIProvider;
 
-  // Selecionar a chave correta baseado no provider
-  const getApiKey = () => {
-    switch (provider) {
-      case 'google':
-        return orgSettings.ai_google_key || '';
-      case 'openai':
-        return orgSettings.ai_openai_key || '';
-      case 'anthropic':
-        return orgSettings.ai_anthropic_key || '';
-      default:
-        return '';
-    }
-  };
-
-  const apiKey = getApiKey();
+  const apiKey = orgSettings.ai_google_key || '';
 
   if (!apiKey) {
     console.warn('[AIAgent] No API key configured for provider:', provider);
@@ -146,11 +131,6 @@ export async function getOrgAIConfig(
     templateId: orgSettings.ai_template_id || null,
     takeoverEnabled: orgSettings.ai_takeover_enabled === true,
     takeoverMinutes: orgSettings.ai_takeover_minutes ?? 15,
-    allKeys: {
-      google: orgSettings.ai_google_key || null,
-      openai: orgSettings.ai_openai_key || null,
-      anthropic: orgSettings.ai_anthropic_key || null,
-    },
     baseSystemPrompt: orgSettings.ai_base_system_prompt || null,
     timezone: orgSettings.timezone || 'America/Sao_Paulo',
   };
@@ -619,7 +599,6 @@ Responda de forma natural, seguindo as instruções do sistema.
       provider: aiConfig.provider,
       apiKey: aiConfig.apiKey,
       model: modelId,
-      allKeys: aiConfig.allKeys,
     });
 
     const result = await generateWithFailover({
