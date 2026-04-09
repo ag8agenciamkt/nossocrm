@@ -83,7 +83,7 @@ export async function getOrgAIConfig(
   const { data: orgSettings, error } = await supabase
     .from('organization_settings')
     .select(
-      'ai_enabled, ai_provider, ai_model, ai_google_key, ai_openai_key, ai_anthropic_key, ai_hitl_threshold, ai_hitl_min_confidence, ai_hitl_expiration_hours, ai_config_mode, ai_learned_patterns, ai_template_id, ai_takeover_enabled, ai_takeover_minutes, ai_base_system_prompt, timezone'
+      'ai_enabled, ai_provider, ai_model, ai_google_key, ai_hitl_threshold, ai_hitl_min_confidence, ai_hitl_expiration_hours, ai_config_mode, ai_learned_patterns, ai_template_id, ai_takeover_enabled, ai_takeover_minutes, ai_base_system_prompt, timezone'
     )
     .eq('organization_id', organizationId)
     .maybeSingle();

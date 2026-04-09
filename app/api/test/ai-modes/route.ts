@@ -52,7 +52,7 @@ export async function GET() {
     const { data: orgSettings } = await supabase
       .from('organization_settings')
       .select(
-        'ai_config_mode, ai_template_id, ai_learned_patterns, ai_provider, ai_model, ai_google_key, ai_openai_key, ai_anthropic_key, ai_enabled'
+        'ai_config_mode, ai_template_id, ai_learned_patterns, ai_model, ai_google_key, ai_enabled'
       )
       .eq('organization_id', profile.organization_id)
       .single();
@@ -89,11 +89,7 @@ export async function GET() {
       'learnedCriteria' in (orgSettings.ai_learned_patterns as object);
 
     // Check API key
-    const hasApiKey = !!(
-      (orgSettings?.ai_provider === 'google' && orgSettings?.ai_google_key) ||
-      (orgSettings?.ai_provider === 'openai' && orgSettings?.ai_openai_key) ||
-      (orgSettings?.ai_provider === 'anthropic' && orgSettings?.ai_anthropic_key)
-    );
+    const hasApiKey = !!orgSettings?.ai_google_key;
 
     return NextResponse.json({
       status: 'ok',
@@ -105,7 +101,7 @@ export async function GET() {
         learnedPatternsKeys: hasLearnedPatterns
           ? Object.keys(orgSettings?.ai_learned_patterns as object)
           : [],
-        provider: orgSettings?.ai_provider,
+        provider: 'google',
         model: orgSettings?.ai_model,
         hasApiKey,
         enabled: orgSettings?.ai_enabled !== false,
